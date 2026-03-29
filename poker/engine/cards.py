@@ -21,10 +21,10 @@ class Rank(IntEnum):
 
 
 class Suit(Enum):
-    HEARTS = "h"
-    DIAMONDS = "d"
-    CLUBS = "c"
-    SPADES = "s"
+    HEARTS = "H"
+    DIAMONDS = "D"
+    CLUBS = "C"
+    SPADES = "S"
 
 
 _RANK_TO_STR: dict[int, str] = {10: "T", 11: "J", 12: "Q", 13: "K", 14: "A"}
@@ -52,7 +52,7 @@ class Card:
         suit_char = s[1]
         try:
             rank_val = _STR_TO_RANK.get(rank_char) or int(rank_char)
-            return cls(rank=Rank(rank_val), suit=Suit(suit_char))
+            return cls(rank=Rank(rank_val), suit=Suit(suit_char.upper()))
         except (ValueError, KeyError) as e:
             raise ValueError(f"Invalid card string: {s!r}") from e
 
@@ -76,16 +76,10 @@ class Deck:
         if n < 1:
             raise ValueError(f"n must be >= 1, got {n}")
         if self._index + n > len(self._cards):
-            raise ValueError(
-                f"Not enough cards: {self.remaining} remaining, {n} requested"
-            )
+            raise ValueError(f"Not enough cards: {self.remaining} remaining, {n} requested")
         cards = self._cards[self._index : self._index + n]
         self._index += n
         return cards
-
-    def deal_one(self) -> Card:
-        """Deal a single card."""
-        return self.deal(1)[0]
 
     @property
     def remaining(self) -> int:

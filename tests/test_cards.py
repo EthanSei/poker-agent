@@ -26,25 +26,29 @@ class TestCard:
             card.rank = Rank.KING  # type: ignore[misc]
 
     def test_str_face_cards(self) -> None:
-        assert str(Card(Rank.ACE, Suit.SPADES)) == "As"
-        assert str(Card(Rank.KING, Suit.HEARTS)) == "Kh"
-        assert str(Card(Rank.QUEEN, Suit.DIAMONDS)) == "Qd"
-        assert str(Card(Rank.JACK, Suit.CLUBS)) == "Jc"
-        assert str(Card(Rank.TEN, Suit.HEARTS)) == "Th"
+        assert str(Card(Rank.ACE, Suit.SPADES)) == "AS"
+        assert str(Card(Rank.KING, Suit.HEARTS)) == "KH"
+        assert str(Card(Rank.QUEEN, Suit.DIAMONDS)) == "QD"
+        assert str(Card(Rank.JACK, Suit.CLUBS)) == "JC"
+        assert str(Card(Rank.TEN, Suit.HEARTS)) == "TH"
 
     def test_str_number_cards(self) -> None:
-        assert str(Card(Rank.TWO, Suit.CLUBS)) == "2c"
-        assert str(Card(Rank.NINE, Suit.SPADES)) == "9s"
-        assert str(Card(Rank.FIVE, Suit.DIAMONDS)) == "5d"
+        assert str(Card(Rank.TWO, Suit.CLUBS)) == "2C"
+        assert str(Card(Rank.NINE, Suit.SPADES)) == "9S"
+        assert str(Card(Rank.FIVE, Suit.DIAMONDS)) == "5D"
 
     def test_repr(self) -> None:
         card = Card(Rank.ACE, Suit.SPADES)
-        assert repr(card) == "Card(As)"
+        assert repr(card) == "Card(AS)"
 
     def test_from_str_round_trip(self) -> None:
-        cases = ["As", "Kh", "Qd", "Jc", "Th", "9s", "2c", "5d", "7h"]
+        cases = ["AS", "KH", "QD", "JC", "TH", "9S", "2C", "5D", "7H"]
         for s in cases:
             assert str(Card.from_str(s)) == s
+
+    def test_from_str_case_insensitive_suit(self) -> None:
+        assert Card.from_str("As") == Card(Rank.ACE, Suit.SPADES)
+        assert Card.from_str("2c") == Card(Rank.TWO, Suit.CLUBS)
 
     def test_from_str_invalid(self) -> None:
         with pytest.raises(ValueError):
@@ -70,11 +74,6 @@ class TestDeck:
         deck = Deck()
         deck.deal(5)
         assert deck.remaining == 47
-
-    def test_deal_one_returns_card(self) -> None:
-        deck = Deck()
-        card = deck.deal_one()
-        assert isinstance(card, Card)
 
     def test_deal_too_many_raises(self) -> None:
         deck = Deck()
