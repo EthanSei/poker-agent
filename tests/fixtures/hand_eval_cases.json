@@ -1,0 +1,242 @@
+[
+  {
+    "desc": "pair beats high card",
+    "hand_a": ["AS", "AH", "KD", "QC", "JS"],
+    "hand_b": ["KS", "QH", "JD", "TC", "8S"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "two pair beats pair",
+    "hand_a": ["AS", "AH", "KD", "KC", "JS"],
+    "hand_b": ["AS", "AH", "KD", "QC", "JS"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "three of a kind beats two pair",
+    "hand_a": ["AS", "AH", "AD", "QC", "JS"],
+    "hand_b": ["KS", "KH", "QD", "QC", "JS"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "straight beats three of a kind",
+    "hand_a": ["5S", "6H", "7D", "8C", "9S"],
+    "hand_b": ["AS", "AH", "AD", "QC", "JS"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "flush beats straight",
+    "hand_a": ["2S", "4S", "6S", "8S", "TS"],
+    "hand_b": ["5S", "6H", "7D", "8C", "9S"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "full house beats flush",
+    "hand_a": ["AS", "AH", "AD", "KC", "KS"],
+    "hand_b": ["2S", "4S", "6S", "8S", "TS"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "four of a kind beats full house",
+    "hand_a": ["AS", "AH", "AD", "AC", "KS"],
+    "hand_b": ["KS", "KH", "KD", "QC", "QS"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "straight flush beats four of a kind",
+    "hand_a": ["5S", "6S", "7S", "8S", "9S"],
+    "hand_b": ["AS", "AH", "AD", "AC", "KS"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "high card - ace high beats king high",
+    "hand_a": ["AS", "QH", "TD", "8C", "6S"],
+    "hand_b": ["KS", "QH", "TD", "8C", "6H"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "high card - second kicker decides",
+    "hand_a": ["AS", "KH", "TD", "8C", "6S"],
+    "hand_b": ["AS", "QH", "TD", "8C", "6H"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "high card - fifth kicker decides",
+    "hand_a": ["AS", "KH", "QD", "JC", "9S"],
+    "hand_b": ["AS", "KH", "QD", "JC", "8H"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "pair - higher pair wins",
+    "hand_a": ["AS", "AH", "KD", "QC", "JS"],
+    "hand_b": ["KS", "KH", "AD", "QC", "JS"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "pair - same pair kicker decides",
+    "hand_a": ["AS", "AH", "KD", "QC", "JS"],
+    "hand_b": ["AS", "AH", "KD", "QC", "TS"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "pair - same pair second kicker decides",
+    "hand_a": ["AS", "AH", "KD", "QC", "9S"],
+    "hand_b": ["AS", "AH", "KD", "JC", "9H"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "two pair - higher top pair wins",
+    "hand_a": ["AS", "AH", "3D", "3C", "KS"],
+    "hand_b": ["KS", "KH", "QD", "QC", "AS"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "two pair - same top pair lower pair decides",
+    "hand_a": ["AS", "AH", "KD", "KC", "QS"],
+    "hand_b": ["AS", "AH", "QD", "QC", "KS"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "two pair - same pairs kicker decides",
+    "hand_a": ["AS", "AH", "KD", "KC", "QS"],
+    "hand_b": ["AS", "AH", "KD", "KC", "JS"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "three of a kind - higher trips wins",
+    "hand_a": ["AS", "AH", "AD", "KC", "QS"],
+    "hand_b": ["KS", "KH", "KD", "AC", "QS"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "three of a kind - kicker decides",
+    "hand_a": ["AS", "AH", "AD", "KC", "QS"],
+    "hand_b": ["AS", "AH", "AD", "KC", "JS"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "straight - higher straight wins",
+    "hand_a": ["6S", "7H", "8D", "9C", "TS"],
+    "hand_b": ["5S", "6H", "7D", "8C", "9S"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "wheel straight - lowest straight",
+    "hand_a": ["AS", "2H", "3D", "4C", "5S"],
+    "hand_b": ["2S", "3H", "4D", "5C", "6S"],
+    "expected": "b_wins"
+  },
+  {
+    "desc": "broadway straight",
+    "hand_a": ["TS", "JH", "QD", "KC", "AS"],
+    "hand_b": ["9S", "TH", "JD", "QC", "KS"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "flush - higher first card wins",
+    "hand_a": ["AS", "QS", "TS", "8S", "6S"],
+    "hand_b": ["KS", "QH", "TH", "8H", "6H"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "flush - fifth kicker decides",
+    "hand_a": ["AH", "KH", "QH", "JH", "9H"],
+    "hand_b": ["AD", "KD", "QD", "JD", "8D"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "full house - trips rank dominates",
+    "hand_a": ["3S", "3H", "3D", "AC", "AS"],
+    "hand_b": ["2S", "2H", "2D", "AC", "AS"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "full house - same trips pair decides",
+    "hand_a": ["AS", "AH", "AD", "KC", "KS"],
+    "hand_b": ["AS", "AH", "AD", "QC", "QS"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "four of a kind - higher quads wins",
+    "hand_a": ["AS", "AH", "AD", "AC", "2S"],
+    "hand_b": ["KS", "KH", "KD", "KC", "AS"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "four of a kind - kicker decides",
+    "hand_a": ["AS", "AH", "AD", "AC", "KS"],
+    "hand_b": ["AS", "AH", "AD", "AC", "QS"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "straight flush - higher wins",
+    "hand_a": ["6S", "7S", "8S", "9S", "TS"],
+    "hand_b": ["5H", "6H", "7H", "8H", "9H"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "straight flush - wheel is lowest",
+    "hand_a": ["AH", "2H", "3H", "4H", "5H"],
+    "hand_b": ["2S", "3S", "4S", "5S", "6S"],
+    "expected": "b_wins"
+  },
+  {
+    "desc": "split pot - identical high cards",
+    "hand_a": ["AS", "KH", "QD", "JC", "9S"],
+    "hand_b": ["AH", "KD", "QC", "JS", "9H"],
+    "expected": "tie"
+  },
+  {
+    "desc": "split pot - identical straights",
+    "hand_a": ["5S", "6H", "7D", "8C", "9S"],
+    "hand_b": ["5H", "6D", "7C", "8S", "9H"],
+    "expected": "tie"
+  },
+  {
+    "desc": "split pot - identical two pair with kicker",
+    "hand_a": ["AS", "AH", "KD", "KC", "QS"],
+    "hand_b": ["AD", "AC", "KH", "KS", "QH"],
+    "expected": "tie"
+  },
+  {
+    "desc": "7-card hand - finds flush in 7 cards",
+    "hand_a": ["AS", "KS", "QS", "JS", "9S", "2H", "3D"],
+    "hand_b": ["AH", "AD", "AC", "KH", "KD", "2S", "3C"],
+    "expected": "b_wins"
+  },
+  {
+    "desc": "7-card hand - finds best pair among 7",
+    "hand_a": ["AS", "AH", "KD", "QC", "JS", "3H", "2D"],
+    "hand_b": ["KS", "KH", "QD", "JC", "TS", "3D", "2C"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "7-card hand - two pair from 7 cards",
+    "hand_a": ["AS", "AH", "KD", "KC", "QS", "3H", "2D"],
+    "hand_b": ["AS", "AH", "QD", "QC", "KS", "3D", "2C"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "7-card hand - best straight from 7",
+    "hand_a": ["4S", "5H", "6D", "7C", "8S", "9H", "2D"],
+    "hand_b": ["4S", "5H", "6D", "7C", "8S", "3H", "2D"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "7-card hand - full house from 7 cards",
+    "hand_a": ["AS", "AH", "AD", "KC", "KS", "3H", "2D"],
+    "hand_b": ["KS", "KH", "KD", "AC", "AS", "3D", "2C"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "wheel straight is valid straight",
+    "hand_a": ["AS", "2H", "3D", "4C", "5S"],
+    "hand_b": ["KS", "QH", "JD", "TC", "8S"],
+    "expected": "a_wins"
+  },
+  {
+    "desc": "flush beats higher-card non-flush",
+    "hand_a": ["2H", "4H", "6H", "8H", "TH"],
+    "hand_b": ["AS", "KH", "QD", "JC", "9S"],
+    "expected": "a_wins"
+  }
+]
