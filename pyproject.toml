@@ -22,7 +22,7 @@ dev = [
     "pytest",
     "pytest-asyncio",
     "mypy",
-    "ruff",
+    "ruff>=0.14",
     "httpx",
 ]
 

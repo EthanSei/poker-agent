@@ -18,7 +18,10 @@ format:
 typecheck:
 	mypy poker/
 
-check: lint typecheck test
+format-check:
+	ruff format --check .
+
+check: lint format-check typecheck test
 
 play:
 	python -m poker.cli
