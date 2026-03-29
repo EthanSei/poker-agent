@@ -88,18 +88,32 @@ An import lint test enforces this. Engine must NEVER import from scoring, bots, 
 
 ## Development Workflow
 
-After completing each phase's PRs, run a deep audit to ensure correctness and avoid context creep before moving to the next phase. Compact and verify assumptions haven't drifted.
+- After completing each phase's PRs, run a deep audit to ensure correctness and avoid context creep before moving to the next phase.
+- Repo is configured for squash merge only with auto-delete branch on merge.
+- Use actor-critic subagents: one implements, one reviews before pushing.
 
-## Branch Strategy
+## Branch Strategy & Parallelism
 
-Each implementation phase is split into focused PRs on feature branches off `main`:
-- `phase1/cards-deck` — Card types and deck
-- `phase1/hand-evaluator` — Hand evaluation with test fixtures
-- `phase1/pot-calculator` — Pot and side-pot math
-- `phase1/betting-state-machine` — Core FSM (GameState, apply_action, legal_actions)
-- `phase1/bots-cli` — Basic bots + CLI game runner
-- `phase2/equity-scoring` — Monte Carlo equity + DTO scoring
-- `phase2/persistence` — DB models, migrations, hand history
-- `phase2/rest-api` — REST endpoints for history and stats
+Each implementation phase is split into focused PRs on feature branches off `main`.
+PRs marked with ⚡ can be built in parallel using separate agents with worktrees.
+
+### Phase 1: Core Engine + CLI
+- ~~`phase1/cards-deck`~~ — MERGED
+- `phase1/hand-evaluator` — Hand evaluation with test fixtures ⚡
+- `phase1/pot-calculator` — Pot and side-pot math ⚡
+- `phase1/betting-state-machine` — Core FSM (depends on cards, evaluator, pot)
+- `phase1/bots-cli` — Basic bots + CLI runner (depends on betting-state-machine)
+
+**Parallelism**: `hand-evaluator` and `pot-calculator` are independent — both depend only on `cards.py` (now merged). They can be built simultaneously in separate worktrees. `betting-state-machine` must wait for both to merge. `bots-cli` must wait for the FSM.
+
+### Phase 2: Scoring + Persistence
+- `phase2/equity-scoring` — Monte Carlo equity + DTO scoring ⚡
+- `phase2/persistence` — DB models, migrations, hand history ⚡
+- `phase2/rest-api` — REST endpoints (depends on persistence)
+- `phase2/bots-upgrade` — Equity-based bot strategies (depends on equity-scoring)
+
+**Parallelism**: `equity-scoring` and `persistence` are independent and can be built simultaneously.
+
+### Phase 3-4
 - `phase3/websocket-ui` — WebSocket handler + React frontend
 - `phase4/multiplayer` — Auth, lobby, multi-table, deployment
