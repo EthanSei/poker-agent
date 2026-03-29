@@ -1,9 +1,16 @@
-"""Game state machine for No-Limit Texas Hold'em."""
+"""Game state machine for No-Limit Texas Hold'em.
+
+Follows a Gymnasium-shaped API (reset/step/observation) for compatibility
+with RL training, but has no framework dependency. Multi-agent turn-based:
+each step() is one player's action, and the observation is from the
+current actor's perspective.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any
 
 from poker.engine.actions import Action, PlayerAction
 from poker.engine.cards import Card, Deck
@@ -32,34 +39,81 @@ class PlayerState:
     total_bet: int = 0  # total bet across all rounds this hand
 
 
+# ---------------------------------------------------------------------------
+# Observation / StepResult types
+# ---------------------------------------------------------------------------
+
+Observation = dict[str, Any]
+
+
+@dataclass(frozen=True)
+class StepResult:
+    """Return type of PokerEnv.step(), shaped like Gymnasium."""
+
+    observation: Observation
+    reward: dict[int, float]  # seat -> reward (chip delta this step, 0 until hand ends)
+    terminated: bool  # hand is over
+    truncated: bool  # always False (no time limit)
+    info: dict[str, Any]
+
+
+# ---------------------------------------------------------------------------
+# PokerEnv — the Gymnasium-shaped environment
+# ---------------------------------------------------------------------------
+
+
 @dataclass
-class GameState:
+class PokerEnv:
+    """No-Limit Texas Hold'em environment with Gymnasium-shaped API.
+
+    Multi-agent, turn-based. Each step() is one player's action.
+    Use `current_actor_seat` to know whose turn it is, and `legal_actions()`
+    to get valid moves.
+    """
+
     players: list[PlayerState]
     deck: Deck
     board: list[Card]
     street: Street
-    pot: int  # total pot (sum of all bets committed)
-    current_bet: int  # current bet to match in this round
-    min_raise: int  # minimum raise increment
+    pot: int
+    current_bet: int
+    min_raise: int
     dealer_seat: int
     small_blind: int
     big_blind: int
-    current_actor_idx: int  # index into players list
-    last_raiser_idx: int | None  # who last raised (betting ends when action returns here)
+    current_actor_idx: int
+    last_raiser_idx: int | None
     hand_over: bool = False
-    winners: dict[int, int] = field(default_factory=dict)  # seat -> chips won
-    _total_chips: int = 0  # invariant: total chips in play
-    _acted_this_round: set[int] = field(default_factory=set)  # indices that have acted
+    winners: dict[int, int] = field(default_factory=dict)
+    _total_chips: int = 0
+    _acted_this_round: set[int] = field(default_factory=set)
+    _initial_stacks: dict[int, int] = field(default_factory=dict)
+
+    # -- Gymnasium-shaped API -------------------------------------------------
+
+    @property
+    def current_actor_seat(self) -> int | None:
+        """Seat of the player who must act next, or None if hand is over."""
+        if self.hand_over:
+            return None
+        return self.players[self.current_actor_idx].seat
 
     @property
     def current_actor(self) -> PlayerState:
         return self.players[self.current_actor_idx]
 
-    def to_player_view(self, seat: int) -> dict[str, object]:
-        """Return a dict with all public info + only that seat's hole cards."""
-        players_view: list[dict[str, object]] = []
+    def observe(self, seat: int | None = None) -> Observation:
+        """Get observation for a player. Defaults to current actor.
+
+        Hides other players' hole cards (and folded cards at showdown).
+        Includes legal actions for the observed player.
+        """
+        if seat is None:
+            seat = self.current_actor.seat if not self.hand_over else self.players[0].seat
+
+        players_view: list[dict[str, Any]] = []
         for p in self.players:
-            pv: dict[str, object] = {
+            pv: dict[str, Any] = {
                 "seat": p.seat,
                 "stack": p.stack,
                 "is_active": p.is_active,
@@ -70,11 +124,9 @@ class GameState:
             show = p.seat == seat or (
                 (self.street == Street.SHOWDOWN or self.hand_over) and p.is_active
             )
-            if show:
-                pv["hole_cards"] = [str(c) for c in p.hole_cards]
-            else:
-                pv["hole_cards"] = []
+            pv["hole_cards"] = [str(c) for c in p.hole_cards] if show else []
             players_view.append(pv)
+
         return {
             "players": players_view,
             "board": [str(c) for c in self.board],
@@ -85,21 +137,70 @@ class GameState:
             "dealer_seat": self.dealer_seat,
             "small_blind": self.small_blind,
             "big_blind": self.big_blind,
-            "current_actor_seat": self.current_actor.seat if not self.hand_over else None,
+            "current_actor_seat": self.current_actor_seat,
             "hand_over": self.hand_over,
             "winners": self.winners,
+            "legal_actions": [
+                {"action": a.action.value, "amount": a.amount} for a in legal_actions(self)
+            ]
+            if not self.hand_over and self.current_actor.seat == seat
+            else [],
         }
 
+    def step(self, action: PlayerAction) -> StepResult:
+        """Apply a player action. Returns (observation, reward, terminated, truncated, info).
 
-def _find_player_idx(state: GameState, seat: int) -> int:
+        Observation is from the next actor's perspective (or current if hand ended).
+        Reward is chip delta per seat (non-zero only when hand completes).
+        """
+        apply_action(self, action)
+
+        # Compute rewards: chip delta from initial stacks (only meaningful at hand end)
+        reward: dict[int, float] = {}
+        if self.hand_over:
+            for p in self.players:
+                reward[p.seat] = float(p.stack - self._initial_stacks[p.seat])
+        else:
+            for p in self.players:
+                reward[p.seat] = 0.0
+
+        obs = self.observe()
+        info: dict[str, Any] = {
+            "street": self.street.value,
+            "winners": self.winners if self.hand_over else {},
+        }
+
+        return StepResult(
+            observation=obs,
+            reward=reward,
+            terminated=self.hand_over,
+            truncated=False,
+            info=info,
+        )
+
+    def validate(self) -> None:
+        """Check game state invariants. Raises InvalidStateError if violated."""
+        validate_state(self)
+
+    # Legacy aliases
+    def to_player_view(self, seat: int) -> Observation:
+        """Legacy alias for observe(seat)."""
+        return self.observe(seat)
+
+
+# ---------------------------------------------------------------------------
+# Module-level functions (the engine core)
+# ---------------------------------------------------------------------------
+
+
+def _find_player_idx(state: PokerEnv, seat: int) -> int:
     for i, p in enumerate(state.players):
-        return_val = i
         if p.seat == seat:
-            return return_val
+            return i
     raise InvalidStateError(f"Seat {seat} not found")
 
 
-def _next_active_idx(state: GameState, from_idx: int) -> int:
+def _next_active_idx(state: PokerEnv, from_idx: int) -> int:
     """Find next player index that is active and not all-in."""
     n = len(state.players)
     for offset in range(1, n + 1):
@@ -107,14 +208,14 @@ def _next_active_idx(state: GameState, from_idx: int) -> int:
         p = state.players[idx]
         if p.is_active and not p.is_all_in:
             return idx
-    return from_idx  # no one else can act
+    return from_idx
 
 
-def _count_active(state: GameState) -> int:
+def _count_active(state: PokerEnv) -> int:
     return sum(1 for p in state.players if p.is_active)
 
 
-def _count_can_act(state: GameState) -> int:
+def _count_can_act(state: PokerEnv) -> int:
     """Count players who are active and not all-in."""
     return sum(1 for p in state.players if p.is_active and not p.is_all_in)
 
@@ -130,12 +231,28 @@ def _post_blind(player: PlayerState, amount: int) -> int:
     return actual
 
 
+def reset(
+    seats_and_stacks: dict[int, int],
+    dealer_seat: int,
+    small_blind: int = 50,
+    big_blind: int = 100,
+) -> tuple[Observation, PokerEnv]:
+    """Create a new hand. Returns (observation, env).
+
+    Gymnasium-shaped: like env.reset() returning (obs, info),
+    but returns the env itself since it's not a persistent object.
+    """
+    env = new_hand(seats_and_stacks, dealer_seat, small_blind, big_blind)
+    obs = env.observe()
+    return obs, env
+
+
 def new_hand(
     seats_and_stacks: dict[int, int],
     dealer_seat: int,
     small_blind: int = 50,
     big_blind: int = 100,
-) -> GameState:
+) -> PokerEnv:
     """Create a new hand. Posts blinds, deals hole cards, sets up preflop."""
     if len(seats_and_stacks) < 2:
         raise InvalidStateError("Need at least 2 players")
@@ -144,7 +261,7 @@ def new_hand(
     players = [PlayerState(seat=s, stack=seats_and_stacks[s]) for s in sorted_seats]
 
     deck = Deck()
-    state = GameState(
+    state = PokerEnv(
         players=players,
         deck=deck,
         board=[],
@@ -157,17 +274,16 @@ def new_hand(
         big_blind=big_blind,
         current_actor_idx=0,
         last_raiser_idx=None,
+        _initial_stacks=dict(seats_and_stacks),
     )
 
     n = len(players)
     dealer_idx = _find_player_idx(state, dealer_seat)
 
     if n == 2:
-        # Heads-up: dealer posts SB, other posts BB
         sb_idx = dealer_idx
         bb_idx = (dealer_idx + 1) % n
     else:
-        # 3+ players: left of dealer posts SB, next posts BB
         sb_idx = (dealer_idx + 1) % n
         bb_idx = (dealer_idx + 2) % n
 
@@ -176,23 +292,17 @@ def new_hand(
     state.current_bet = max(sb_posted, bb_posted)
     state.pot = sb_posted + bb_posted
 
-    # Set total chips invariant
     state._total_chips = sum(p.stack for p in players) + state.pot
 
-    # Deal hole cards
     for p in players:
         p.hole_cards = deck.deal(2)
 
-    # Preflop: action starts left of BB
     first_actor_idx = (bb_idx + 1) % n
-    # Skip players who are all-in
     if players[first_actor_idx].is_all_in:
         first_actor_idx = _next_active_idx(state, first_actor_idx)
     state.current_actor_idx = first_actor_idx
-    # No last_raiser preflop — BB option is handled by _acted_this_round
     state.last_raiser_idx = None
 
-    # If only one player can act (other is all-in from blinds), handle it
     if _count_can_act(state) <= 1 and _count_active(state) >= 2:
         if _count_can_act(state) == 1:
             can_act_idx = next(
@@ -200,13 +310,12 @@ def new_hand(
             )
             state.current_actor_idx = can_act_idx
         elif _count_can_act(state) == 0:
-            # Everyone is all-in, advance to showdown
             _advance_street(state)
 
     return state
 
 
-def legal_actions(state: GameState) -> list[PlayerAction]:
+def legal_actions(state: PokerEnv) -> list[PlayerAction]:
     """Return all legal actions for the current actor."""
     if state.hand_over:
         return []
@@ -217,37 +326,28 @@ def legal_actions(state: GameState) -> list[PlayerAction]:
     to_call = state.current_bet - player.current_bet
 
     if to_call > 0:
-        # Facing a bet
         actions.append(PlayerAction(seat=seat, action=Action.FOLD))
 
-        # CALL
         call_amount = min(to_call, player.stack)
         if call_amount > 0:
             actions.append(PlayerAction(seat=seat, action=Action.CALL, amount=call_amount))
 
-        # RAISE
         min_raise_to = state.current_bet + state.min_raise
         if player.stack + player.current_bet > state.current_bet:
-            # Player can put in more than a call
             if player.stack + player.current_bet >= min_raise_to:
-                # Can make a legal min-raise
                 min_raise_amount = min_raise_to - player.current_bet
                 actions.append(
                     PlayerAction(seat=seat, action=Action.RAISE, amount=min_raise_amount)
                 )
-                # All-in raise if different from min raise
                 if player.stack > min_raise_amount:
                     actions.append(
                         PlayerAction(seat=seat, action=Action.ALL_IN, amount=player.stack)
                     )
             else:
-                # Can only go all-in for less than a full raise
                 actions.append(PlayerAction(seat=seat, action=Action.ALL_IN, amount=player.stack))
     else:
-        # No bet to match
         actions.append(PlayerAction(seat=seat, action=Action.CHECK))
 
-        # BET
         if player.stack > 0:
             min_bet = state.big_blind
             if player.stack >= min_bet:
@@ -257,13 +357,12 @@ def legal_actions(state: GameState) -> list[PlayerAction]:
                         PlayerAction(seat=seat, action=Action.ALL_IN, amount=player.stack)
                     )
             else:
-                # Can only go all-in for less than min bet
                 actions.append(PlayerAction(seat=seat, action=Action.ALL_IN, amount=player.stack))
 
     return actions
 
 
-def apply_action(state: GameState, action: PlayerAction) -> GameState:
+def apply_action(state: PokerEnv, action: PlayerAction) -> PokerEnv:
     """Apply a player action and return the (mutated) state."""
     if state.hand_over:
         raise IllegalActionError("Hand is over")
@@ -272,16 +371,14 @@ def apply_action(state: GameState, action: PlayerAction) -> GameState:
     if action.seat != player.seat:
         raise IllegalActionError(f"Not seat {action.seat}'s turn, expected seat {player.seat}")
 
-    # Validate action is in legal actions list
     valid = legal_actions(state)
     _validate_action(action, valid)
 
-    # Apply the action
     if action.action == Action.FOLD:
         player.is_active = False
 
     elif action.action == Action.CHECK:
-        pass  # nothing to do
+        pass
 
     elif action.action == Action.CALL:
         amount = min(state.current_bet - player.current_bet, player.stack)
@@ -320,15 +417,12 @@ def apply_action(state: GameState, action: PlayerAction) -> GameState:
                 state.last_raiser_idx = state.current_actor_idx
             state.current_bet = player.current_bet
 
-    # Track that this player has acted
     state._acted_this_round.add(state.current_actor_idx)
 
-    # Check if hand is over (only one active player)
     if _count_active(state) == 1:
         _resolve_fold_win(state)
         return state
 
-    # Advance to next actor or next street
     _advance_action(state)
 
     return state
@@ -344,8 +438,6 @@ def _validate_action(action: PlayerAction, valid: list[PlayerAction]) -> None:
                 if action.amount == v.amount:
                     return
             if action.action in (Action.BET, Action.RAISE):
-                # Allow any amount between min and all-in
-                # Find the all-in action to get max
                 all_in_actions = [a for a in valid if a.action == Action.ALL_IN]
                 max_amount = all_in_actions[0].amount if all_in_actions else v.amount
                 if v.amount <= action.amount <= max_amount:
@@ -358,22 +450,18 @@ def _validate_action(action: PlayerAction, valid: list[PlayerAction]) -> None:
     raise IllegalActionError(f"Illegal action: {action}")
 
 
-def _advance_action(state: GameState) -> None:
+def _advance_action(state: PokerEnv) -> None:
     """Move to next actor or advance street if betting round is over."""
     next_idx = _next_active_idx(state, state.current_actor_idx)
 
-    # Check if betting round is over
     round_over = False
 
     if _count_can_act(state) == 0:
-        # Everyone is all-in or folded
         round_over = True
     elif state.last_raiser_idx is not None:
         if next_idx == state.last_raiser_idx:
-            # Action returned to last raiser
             round_over = True
         elif state.players[state.last_raiser_idx].is_all_in:
-            # Last raiser is all-in; round ends when all others have acted
             all_acted = all(
                 i in state._acted_this_round
                 for i, p in enumerate(state.players)
@@ -382,7 +470,6 @@ def _advance_action(state: GameState) -> None:
             if all_acted:
                 round_over = True
     else:
-        # No raise this round. Round ends when all eligible players have acted.
         all_acted = all(
             i in state._acted_this_round
             for i, p in enumerate(state.players)
@@ -397,9 +484,8 @@ def _advance_action(state: GameState) -> None:
         state.current_actor_idx = next_idx
 
 
-def _advance_street(state: GameState) -> None:
+def _advance_street(state: PokerEnv) -> None:
     """Deal community cards and set up next betting round."""
-    # Reset current bets and acted tracking for new round
     state._acted_this_round = set()
     for p in state.players:
         p.current_bet = 0
@@ -422,13 +508,11 @@ def _advance_street(state: GameState) -> None:
     else:
         return
 
-    # If no one (or only one) can act but multiple players remain, run out the board
     can_act = _count_can_act(state)
     if can_act <= 1 and _count_active(state) >= 2:
         _advance_street(state)
         return
 
-    # Set first actor for postflop: first active non-all-in player left of dealer
     dealer_idx = _find_player_idx(state, state.dealer_seat)
     n = len(state.players)
     for offset in range(1, n + 1):
@@ -438,7 +522,7 @@ def _advance_street(state: GameState) -> None:
             break
 
 
-def _resolve_fold_win(state: GameState) -> None:
+def _resolve_fold_win(state: PokerEnv) -> None:
     """Everyone folded except one player — they win the pot."""
     winner = next(p for p in state.players if p.is_active)
     winner.stack += state.pot
@@ -448,11 +532,10 @@ def _resolve_fold_win(state: GameState) -> None:
     state.street = Street.COMPLETE
 
 
-def _resolve_showdown(state: GameState) -> None:
+def _resolve_showdown(state: PokerEnv) -> None:
     """Evaluate hands and distribute pots."""
     state.street = Street.SHOWDOWN
 
-    # Build bets dict and folded set
     bets: dict[int, int] = {}
     folded: set[int] = set()
     for p in state.players:
@@ -460,18 +543,15 @@ def _resolve_showdown(state: GameState) -> None:
         if not p.is_active:
             folded.add(p.seat)
 
-    # Evaluate hands
     hand_rankings: dict[int, tuple[int, ...]] = {}
     for p in state.players:
         if p.is_active:
             result = evaluate_hand(p.hole_cards + state.board)
             hand_rankings[p.seat] = (result.category, *result.tiebreakers)
 
-    # Calculate and award pots
     pots = calculate_pots(bets, folded)
     winnings = award_pots(pots, hand_rankings)
 
-    # Update stacks
     for seat, amount in winnings.items():
         for p in state.players:
             if p.seat == seat:
@@ -483,15 +563,8 @@ def _resolve_showdown(state: GameState) -> None:
     state.street = Street.COMPLETE
 
 
-def validate_state(state: GameState) -> None:
+def validate_state(state: PokerEnv) -> None:
     """Check game state invariants. Raises InvalidStateError if violated."""
-    # Total chips conservation
-    total = sum(p.stack for p in state.players) + state.pot
-    for p in state.players:
-        total += p.current_bet  # current round bets not yet in pot... wait
-    # Actually pot already includes committed bets. current_bet on player is
-    # tracked for betting logic but the chips are already in pot.
-    # Let's recalculate: total chips = stacks + pot
     actual_total = sum(p.stack for p in state.players) + state.pot
     if state._total_chips > 0 and actual_total != state._total_chips:
         raise InvalidStateError(
@@ -499,11 +572,9 @@ def validate_state(state: GameState) -> None:
             f"got {actual_total} (stacks={sum(p.stack for p in state.players)}, pot={state.pot})"
         )
 
-    # No negative stacks
     for p in state.players:
         if p.stack < 0:
             raise InvalidStateError(f"Negative stack for seat {p.seat}: {p.stack}")
 
-    # At least one active player
     if _count_active(state) < 1:
         raise InvalidStateError("No active players")
