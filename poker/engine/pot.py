@@ -54,9 +54,7 @@ def calculate_pots(bets: dict[int, int], folded: set[int]) -> list[Pot]:
     return pots
 
 
-def award_pots(
-    pots: list[Pot], hand_rankings: dict[int, tuple[int, ...]]
-) -> dict[int, int]:
+def award_pots(pots: list[Pot], hand_rankings: dict[int, tuple[int, ...]]) -> dict[int, int]:
     """Award pots to winners based on hand rankings.
 
     Args:
@@ -70,12 +68,12 @@ def award_pots(
 
     for pot in pots:
         eligible = {
-            seat: hand_rankings[seat]
-            for seat in pot.eligible_seats
-            if seat in hand_rankings
+            seat: hand_rankings[seat] for seat in pot.eligible_seats if seat in hand_rankings
         }
         if not eligible:
-            raise ValueError(f"Pot has eligible seats {pot.eligible_seats} but none in hand_rankings")
+            raise ValueError(
+                f"Pot has eligible seats {pot.eligible_seats} but none in hand_rankings"
+            )
 
         best_rank = max(eligible.values())
         winners = sorted(seat for seat, rank in eligible.items() if rank == best_rank)
